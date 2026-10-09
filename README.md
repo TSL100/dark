@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/logo.svg" width="200" alt="BLACK logo"/>
+<img src="assets/logo.svg" width="360" alt="DARK logo"/>
 
-# BLACK
+# DARK
 
 **Windows DFIR Timeline Analyzer**
 
@@ -19,7 +19,7 @@
 
 ## Summary
 
-**BLACK** is a desktop DFIR (Digital Forensics & Incident Response) tool that ingests Windows forensic artifacts — **Prefetch, LNK, JumpLists, Amcache, UserAssist, BAM, Shellbags, Recycle Bin, RecentDocs and Shimcache** — parses them through a modular backend pipeline, and presents everything in a unified, filterable **Master Timeline**.
+**DARK** is a desktop DFIR (Digital Forensics & Incident Response) tool that ingests Windows forensic artifacts — **Prefetch, LNK, JumpLists, Amcache, UserAssist, BAM, Shellbags, Recycle Bin, RecentDocs and Shimcache** — parses them through a modular backend pipeline, and presents everything in a unified, filterable **Master Timeline**.
 
 Analysts get an interactive **artifact relationship graph**, **high-risk threat scoring**, **AI-powered incident storytelling**, **SHA-256 exports**, and a **Shellbags Explorer** that reconstructs the folder hierarchy with Active / Deleted / Moved / Renamed item status — all in one fast, dark-themed PySide6 application.
 
@@ -60,8 +60,8 @@ All Python dependencies are listed in [`requirements.txt`](requirements.txt).
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/TSL100/black.git
-cd black
+git clone https://github.com/TSL100/dark.git
+cd dark
 
 # 2. Create and activate a virtual environment (recommended)
 python -m venv .venv
@@ -110,7 +110,7 @@ Every parser emits the same **schema v1.0** (`timestamp`, `source`, `event_type`
 ## Project Structure
 
 ```
-black/
+dark/
 ├── dfir_timeline_ui.py        # PySide6 GUI application
 ├── orchestrator.py            # CLI: run, select and merge parsers
 ├── requirements.txt
@@ -150,5 +150,5 @@ black/
 ---
 
 <div align="center">
-<sub>BLACK — built for DFIR analysts. Parse fast, correlate everything, tell the story.</sub>
+<sub>DARK — built for DFIR analysts. Parse fast, correlate everything, tell the story.</sub>
 </div>
