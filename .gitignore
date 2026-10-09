@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Large evidence exports (regenerate with orchestrator.py)
+prefetch_timeline.json
+kape_lnk_timeline.json
+jumplists_timeline.json
+book1_removed.pdf
+
+# Screenshots / working files
+*.png
+*.lnk
+*.rar
+
+# OS / IDE
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,888 @@
+{
+  "metadata": {
+    "tool": "lnk_forensics.py",
+    "version": "1.0.0",
+    "generated_utc": "2026-10-09T02:31:59.039891+00:00",
+    "target_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples",
+    "scan_mode": "recursive",
+    "parser_engine": [
+      "builtin"
+    ],
+    "timestamps_format": "ISO 8601 UTC",
+    "counts": {
+      "lnk_files_found": 9,
+      "lnk_files_parsed": 6,
+      "lnk_files_failed": 3,
+      "timeline_events": 21,
+      "unique_targets": 6,
+      "machines_observed": [
+        "desktop-pl5k2do"
+      ],
+      "volume_serials": [
+        "0x146AA613"
+      ]
+    }
+  },
+  "events": [
+    {
+      "timestamp": "2019-12-07T09:09:47.475222+00:00",
+      "timestamp_type": "Target Creation",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 27648,
+        "description": null,
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2019-12-07T09:09:47.475222+00:00",
+      "timestamp_type": "Target Modification",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 27648,
+        "description": null,
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-07-20T15:35:32.467191+00:00",
+      "timestamp_type": "Target Creation",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 200704,
+        "description": "Quick notepad",
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+        "working_directory": "C:\\WINDOWS\\System32",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-07-20T15:35:32.497940+00:00",
+      "timestamp_type": "Target Modification",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 200704,
+        "description": "Quick notepad",
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+        "working_directory": "C:\\WINDOWS\\System32",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-08-06T21:07:01.770104+00:00",
+      "timestamp_type": "Target Access",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 27648,
+        "description": null,
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:26:33.124388+00:00",
+      "timestamp_type": "Target Creation",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 25592939,
+        "description": "Quarterly planning (deleted 2026-09-30)",
+        "relative_path": "..\\book1_removed.pdf",
+        "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:26:41.226167+00:00",
+      "timestamp_type": "Target Modification",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 25592939,
+        "description": "Quarterly planning (deleted 2026-09-30)",
+        "relative_path": "..\\book1_removed.pdf",
+        "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:26:41.512047+00:00",
+      "timestamp_type": "Target Access",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 25592939,
+        "description": "Quarterly planning (deleted 2026-09-30)",
+        "relative_path": "..\\book1_removed.pdf",
+        "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:48:05.609211+00:00",
+      "timestamp_type": "Target Access",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 200704,
+        "description": "Quick notepad",
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+        "working_directory": "C:\\WINDOWS\\System32",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.411897+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 200704,
+        "description": "Quick notepad",
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+        "working_directory": "C:\\WINDOWS\\System32",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.426057+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 200704,
+        "description": "Quick notepad",
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+        "working_directory": "C:\\WINDOWS\\System32",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.514390+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 25592939,
+        "description": "Quarterly planning (deleted 2026-09-30)",
+        "relative_path": "..\\book1_removed.pdf",
+        "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.516373+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 25592939,
+        "description": "Quarterly planning (deleted 2026-09-30)",
+        "relative_path": "..\\book1_removed.pdf",
+        "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.525863+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "dangling.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\dangling.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Documents\\donotexist.txt",
+      "details": {
+        "target_source": "idlist",
+        "target_exists": false,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Orphaned shortcut",
+        "relative_path": "..\\..\\..\\..\\..\\Documents\\donotexist.txt",
+        "working_directory": "C:\\Users\\MOHAMED\\Documents",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.528573+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "dangling.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\dangling.lnk",
+      "target_path": "C:\\Users\\MOHAMED\\Documents\\donotexist.txt",
+      "details": {
+        "target_source": "idlist",
+        "target_exists": false,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Orphaned shortcut",
+        "relative_path": "..\\..\\..\\..\\..\\Documents\\donotexist.txt",
+        "working_directory": "C:\\Users\\MOHAMED\\Documents",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.535029+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "unicode_cafe.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\unicode_cafe.lnk",
+      "target_path": "D:\\Docs\\rapport_cafÃ©_2026.docx",
+      "details": {
+        "target_source": "idlist",
+        "target_exists": false,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Rapport cafÃ©",
+        "relative_path": null,
+        "working_directory": "D:\\Docs",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:35.535666+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "unicode_cafe.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\unicode_cafe.lnk",
+      "target_path": "D:\\Docs\\rapport_cafÃ©_2026.docx",
+      "details": {
+        "target_source": "idlist",
+        "target_exists": false,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Rapport cafÃ©",
+        "relative_path": null,
+        "working_directory": "D:\\Docs",
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:41.411688+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "network_report.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\network_report.lnk",
+      "target_path": "\\\\FILESERVER\\shared\\reports\\q3.pdf",
+      "details": {
+        "target_source": "environment_variable_block",
+        "target_exists": null,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Q3 report on share",
+        "relative_path": null,
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:41.415165+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "network_report.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\network_report.lnk",
+      "target_path": "\\\\FILESERVER\\shared\\reports\\q3.pdf",
+      "details": {
+        "target_source": "environment_variable_block",
+        "target_exists": null,
+        "volume_serial_number": null,
+        "volume_label": null,
+        "drive_type": null,
+        "machine_id": null,
+        "droid_file_guid": null,
+        "target_file_size": 0,
+        "description": "Q3 report on share",
+        "relative_path": null,
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:41.456613+00:00",
+      "timestamp_type": "LNK File Created",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 27648,
+        "description": null,
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-10-09T01:51:41.457616+00:00",
+      "timestamp_type": "LNK File Modified",
+      "source": "LNK",
+      "artifact_type": "windows_shortcut",
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "details": {
+        "target_source": "link_info",
+        "target_exists": true,
+        "volume_serial_number": "0x146AA613",
+        "volume_label": null,
+        "drive_type": "Fixed (Hard disk)",
+        "machine_id": "desktop-pl5k2do",
+        "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+        "target_file_size": 27648,
+        "description": null,
+        "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+        "working_directory": null,
+        "arguments": null,
+        "parsers_used": [
+          "builtin"
+        ]
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "lnk_file": "dangling.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\dangling.lnk",
+      "lnk_file_size": 858,
+      "link_flags": [
+        "HasLinkTargetIDList",
+        "HasName",
+        "HasRelativePath",
+        "HasWorkingDir",
+        "IsUnicode"
+      ],
+      "file_attributes": [],
+      "target_path": "C:\\Users\\MOHAMED\\Documents\\donotexist.txt",
+      "target_source": "idlist",
+      "target_file_size": 0,
+      "idlist_path": "C:\\Users\\MOHAMED\\Documents\\donotexist.txt",
+      "volume_serial_number": null,
+      "volume_label": null,
+      "drive_type": null,
+      "machine_id": null,
+      "droid_volume_guid": null,
+      "droid_file_guid": null,
+      "droid_birth_volume_guid": null,
+      "droid_birth_file_guid": null,
+      "known_folder_guid": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}",
+      "description": "Orphaned shortcut",
+      "relative_path": "..\\..\\..\\..\\..\\Documents\\donotexist.txt",
+      "working_directory": "C:\\Users\\MOHAMED\\Documents",
+      "arguments": null,
+      "icon_location": null,
+      "property_store_values": {},
+      "extra_data_blocks": [
+        "KnownFolderDataBlock",
+        "PropertyStoreDataBlock",
+        "SpecialFolderDataBlock"
+      ],
+      "notes": [
+        "root folder: MY_COMPUTER"
+      ],
+      "target_creation_time_utc": null,
+      "target_access_time_utc": null,
+      "target_modification_time_utc": null,
+      "lnk_file_modified_utc": "2026-10-09T01:51:35.528573+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:35.525863+00:00",
+      "target_exists": false,
+      "parsers_used": [
+        "builtin"
+      ]
+    },
+    {
+      "lnk_file": "network_report.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\network_report.lnk",
+      "lnk_file_size": 1314,
+      "link_flags": [
+        "HasName",
+        "IsUnicode",
+        "HasExpString"
+      ],
+      "file_attributes": [],
+      "target_path": "\\\\FILESERVER\\shared\\reports\\q3.pdf",
+      "target_source": "environment_variable_block",
+      "target_file_size": 0,
+      "idlist_path": null,
+      "volume_serial_number": null,
+      "volume_label": null,
+      "drive_type": null,
+      "machine_id": null,
+      "droid_volume_guid": null,
+      "droid_file_guid": null,
+      "droid_birth_volume_guid": null,
+      "droid_birth_file_guid": null,
+      "known_folder_guid": null,
+      "description": "Q3 report on share",
+      "relative_path": null,
+      "working_directory": null,
+      "arguments": null,
+      "icon_location": null,
+      "property_store_values": {},
+      "extra_data_blocks": [
+        "EnvironmentVariableDataBlock",
+        "VistaAndAboveIDListDataBlock"
+      ],
+      "notes": [],
+      "target_creation_time_utc": null,
+      "target_access_time_utc": null,
+      "target_modification_time_utc": null,
+      "lnk_file_modified_utc": "2026-10-09T01:51:41.415165+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:41.411688+00:00",
+      "target_exists": null,
+      "parsers_used": [
+        "builtin"
+      ]
+    },
+    {
+      "lnk_file": "notepad.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\notepad.lnk",
+      "lnk_file_size": 1847,
+      "link_flags": [
+        "HasLinkTargetIDList",
+        "HasLinkInfo",
+        "HasName",
+        "HasRelativePath",
+        "HasWorkingDir",
+        "HasIconLocation",
+        "IsUnicode",
+        "HasExpIcon"
+      ],
+      "file_attributes": [
+        "archive"
+      ],
+      "target_path": "C:\\Windows\\System32\\notepad.exe",
+      "target_source": "link_info",
+      "target_file_size": 200704,
+      "idlist_path": "C:\\Windows\\System32\\notepad.exe",
+      "volume_serial_number": "0x146AA613",
+      "volume_label": null,
+      "drive_type": "Fixed (Hard disk)",
+      "machine_id": "desktop-pl5k2do",
+      "droid_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+      "droid_birth_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_birth_file_guid": "{89F9F31E-C381-11F1-B95F-E4B3188BB6F8}",
+      "known_folder_guid": "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}",
+      "description": "Quick notepad",
+      "relative_path": "..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\notepad.exe",
+      "working_directory": "C:\\WINDOWS\\System32",
+      "arguments": null,
+      "icon_location": "C:\\WINDOWS\\System32\\shell32.dll",
+      "property_store_values": {},
+      "extra_data_blocks": [
+        "IconEnvironmentDataBlock",
+        "KnownFolderDataBlock",
+        "PropertyStoreDataBlock",
+        "SpecialFolderDataBlock",
+        "TrackerDataBlock"
+      ],
+      "notes": [
+        "root folder: MY_COMPUTER"
+      ],
+      "target_creation_time_utc": "2026-07-20T15:35:32.467191+00:00",
+      "target_access_time_utc": "2026-10-09T01:48:05.609211+00:00",
+      "target_modification_time_utc": "2026-07-20T15:35:32.497940+00:00",
+      "lnk_file_modified_utc": "2026-10-09T01:51:35.426057+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:35.411897+00:00",
+      "target_exists": true,
+      "parsers_used": [
+        "builtin"
+      ]
+    },
+    {
+      "lnk_file": "secret_plan.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\secret_plan.lnk",
+      "lnk_file_size": 1038,
+      "link_flags": [
+        "HasLinkTargetIDList",
+        "HasLinkInfo",
+        "HasName",
+        "HasRelativePath",
+        "HasWorkingDir",
+        "IsUnicode"
+      ],
+      "file_attributes": [
+        "archive"
+      ],
+      "target_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "target_source": "link_info",
+      "target_file_size": 25592939,
+      "idlist_path": "::{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}\\CyberSecurity\\Defense\\PoC\\book1_removed.pdf",
+      "volume_serial_number": "0x146AA613",
+      "volume_label": null,
+      "drive_type": "Fixed (Hard disk)",
+      "machine_id": "desktop-pl5k2do",
+      "droid_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+      "droid_birth_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_birth_file_guid": "{1A8FB60D-C32D-11F1-B95F-E4B3188BB6F8}",
+      "known_folder_guid": null,
+      "description": "Quarterly planning (deleted 2026-09-30)",
+      "relative_path": "..\\book1_removed.pdf",
+      "working_directory": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC",
+      "arguments": null,
+      "icon_location": null,
+      "property_store_values": {},
+      "extra_data_blocks": [
+        "PropertyStoreDataBlock",
+        "TrackerDataBlock"
+      ],
+      "notes": [
+        "root folder: MY_COMPUTER"
+      ],
+      "target_creation_time_utc": "2026-10-09T01:26:33.124388+00:00",
+      "target_access_time_utc": "2026-10-09T01:26:41.512047+00:00",
+      "target_modification_time_utc": "2026-10-09T01:26:41.226167+00:00",
+      "lnk_file_modified_utc": "2026-10-09T01:51:35.516373+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:35.514390+00:00",
+      "target_exists": true,
+      "parsers_used": [
+        "builtin"
+      ]
+    },
+    {
+      "lnk_file": "unicode_cafe.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\unicode_cafe.lnk",
+      "lnk_file_size": 409,
+      "link_flags": [
+        "HasLinkTargetIDList",
+        "HasName",
+        "HasWorkingDir",
+        "IsUnicode"
+      ],
+      "file_attributes": [],
+      "target_path": "D:\\Docs\\rapport_cafÃ©_2026.docx",
+      "target_source": "idlist",
+      "target_file_size": 0,
+      "idlist_path": "D:\\Docs\\rapport_cafÃ©_2026.docx",
+      "volume_serial_number": null,
+      "volume_label": null,
+      "drive_type": null,
+      "machine_id": null,
+      "droid_volume_guid": null,
+      "droid_file_guid": null,
+      "droid_birth_volume_guid": null,
+      "droid_birth_file_guid": null,
+      "known_folder_guid": null,
+      "description": "Rapport cafÃ©",
+      "relative_path": null,
+      "working_directory": "D:\\Docs",
+      "arguments": null,
+      "icon_location": null,
+      "property_store_values": {},
+      "extra_data_blocks": [],
+      "notes": [
+        "root folder: MY_COMPUTER"
+      ],
+      "target_creation_time_utc": null,
+      "target_access_time_utc": null,
+      "target_modification_time_utc": null,
+      "lnk_file_modified_utc": "2026-10-09T01:51:35.535666+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:35.535029+00:00",
+      "target_exists": false,
+      "parsers_used": [
+        "builtin"
+      ]
+    },
+    {
+      "lnk_file": "deep.lnk",
+      "lnk_path": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\subfolder\\deep.lnk",
+      "lnk_file_size": 916,
+      "link_flags": [
+        "HasLinkTargetIDList",
+        "HasLinkInfo",
+        "HasRelativePath",
+        "IsUnicode"
+      ],
+      "file_attributes": [
+        "archive"
+      ],
+      "target_path": "C:\\Windows\\System32\\calc.exe",
+      "target_source": "link_info",
+      "target_file_size": 27648,
+      "idlist_path": "C:\\Windows\\System32\\calc.exe",
+      "volume_serial_number": "0x146AA613",
+      "volume_label": null,
+      "drive_type": "Fixed (Hard disk)",
+      "machine_id": "desktop-pl5k2do",
+      "droid_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+      "droid_birth_volume_guid": "{EFEE0D0A-D451-46CC-AE62-62884AA8CD0C}",
+      "droid_birth_file_guid": "{89F9F56A-C381-11F1-B95F-E4B3188BB6F8}",
+      "known_folder_guid": "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}",
+      "description": null,
+      "relative_path": "..\\..\\..\\..\\..\\..\\..\\..\\Windows\\System32\\calc.exe",
+      "working_directory": null,
+      "arguments": null,
+      "icon_location": null,
+      "property_store_values": {},
+      "extra_data_blocks": [
+        "KnownFolderDataBlock",
+        "PropertyStoreDataBlock",
+        "SpecialFolderDataBlock",
+        "TrackerDataBlock"
+      ],
+      "notes": [
+        "root folder: MY_COMPUTER"
+      ],
+      "target_creation_time_utc": "2019-12-07T09:09:47.475222+00:00",
+      "target_access_time_utc": "2026-08-06T21:07:01.770104+00:00",
+      "target_modification_time_utc": "2019-12-07T09:09:47.475222+00:00",
+      "lnk_file_modified_utc": "2026-10-09T01:51:41.457616+00:00",
+      "lnk_file_created_utc": "2026-10-09T01:51:41.456613+00:00",
+      "target_exists": true,
+      "parsers_used": [
+        "builtin"
+      ]
+    }
+  ],
+  "skipped": [
+    {
+      "file": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\corrupted.lnk",
+      "error_type": "ValueError",
+      "error": "file smaller than ShellLinkHeader (38 bytes)"
+    },
+    {
+      "file": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\empty.lnk",
+      "error_type": "ValueError",
+      "error": "file smaller than ShellLinkHeader (0 bytes)"
+    },
+    {
+      "file": "C:\\Users\\MOHAMED\\Desktop\\CyberSecurity\\Defense\\PoC\\samples\\truncated.lnk",
+      "error_type": "ValueError",
+      "error": "file smaller than ShellLinkHeader (20 bytes)"
+    }
+  ]
+}
