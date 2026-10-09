@@ -147,7 +147,7 @@ def _repair_hash(rec: dict[str, Any]) -> bool:
     rec["source_hash"] = record_identity(
         rec.get("source"), rec.get("source_file"),
         rec.get("timestamp_utc"), rec.get("event_type"),
-        rec.get("target_path"))
+        rec.get("target_path"), rec.get("record_ref", ""))
     if isinstance(rec.get("details"), dict):
         rec["details"]["source_hash"] = rec["source_hash"]
     return True

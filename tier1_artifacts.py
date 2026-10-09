@@ -166,7 +166,8 @@ def _base(path):
     return ntpath.basename((path or "").rstrip("\\/")) or (path or "")
 
 
-def record_identity(source, source_file, timestamp_utc, event_type, target_path):
+def record_identity(source, source_file, timestamp_utc, event_type, target_path,
+                    record_ref=""):
     """Canonical dedup identity (basename on purpose: stable across roots)."""
     canon = "\n".join([
         source or "",
@@ -174,6 +175,7 @@ def record_identity(source, source_file, timestamp_utc, event_type, target_path)
         timestamp_utc or "",
         event_type or "",
         target_path or "",
+        record_ref or "",
     ])
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
@@ -189,7 +191,8 @@ def identity_of_timeline_record(rec):
     return record_identity(
         getattr(rec, "artifact_source", ""), source_file,
         getattr(rec, "timestamp", ""), getattr(rec, "event_type", ""),
-        getattr(rec, "target_path", ""))
+        getattr(rec, "target_path", ""),
+        raw.get("record_ref", ""))
 
 
 def make_record(*, timestamp_utc=None, timestamp_raw=None, source_file="",
@@ -206,7 +209,7 @@ def make_record(*, timestamp_utc=None, timestamp_raw=None, source_file="",
     else:
         details.setdefault("machine_id", None)
     source_hash = record_identity(source, source_file, timestamp_utc,
-                                  event_type, target_path)
+                                  event_type, target_path, record_ref)
     details["source_hash"] = source_hash
     if raw_bytes is None:
         raw_bytes = b""
@@ -1863,7 +1866,7 @@ class AcquisitionEngine:
                 digest = rec.get("source_hash") or record_identity(
                     rec.get("source"), rec.get("source_file"),
                     rec.get("timestamp_utc"), rec.get("event_type"),
-                    rec.get("target_path"))
+                    rec.get("target_path"), rec.get("record_ref", ""))
                 if digest in seen:
                     dups += 1
                     continue
