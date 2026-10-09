@@ -27,7 +27,6 @@ import html
 import json
 import math
 import re
-import struct
 import sys
 import urllib.request
 import urllib.error
@@ -94,6 +93,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QScrollArea,
     QSplitter,
     QStatusBar,
     QTabWidget,
@@ -126,6 +126,11 @@ ARTIFACT_COLORS = {
     "BAM": "#ff9b72",
     "RecentDocs": "#79c0ff",
     "RecycleBin": "#f85149",
+    "RegistryMRU": "#76e3ea",
+    "USB": "#d2a8ff",
+    "PowerShell": "#8b949e",
+    "ZoneIdentifier": "#ffdf5d",
+    "Shimcache": "#dbb8f0",
     "Unknown": "#8a8a8a",
 }
 
@@ -151,6 +156,11 @@ ARTIFACT_TITLES = {
     "BAM": "BAM Entry",
     "RecentDocs": "RecentDocs Entry",
     "RecycleBin": "RecycleBin Entry",
+    "RegistryMRU": "Registry MRU Entry",
+    "USB": "USB History Entry",
+    "PowerShell": "PowerShell History Entry",
+    "ZoneIdentifier": "Zone.Identifier Entry",
+    "Shimcache": "Shimcache Entry",
 }
 
 EVENT_ALIASES = {
@@ -417,412 +427,21 @@ class ThreatEngine:
         return "low"
 
 
+# Shared instance: compiling the rule set once. Per-row ThreatEngine()
+# constructions (132k+ regex compiles per filter on big timelines) froze
+# the UI, so populate() paths must use this instead.
+SHARED_THREAT_ENGINE = ThreatEngine()
+
+
 # ---------------------------------------------------------------------------
-# Forensic Artifact Parsers (delegates to parsers/ package)
+# Artifact ingestion — routed exclusively through tier1_artifacts.py
 # ---------------------------------------------------------------------------
-
-from parsers.base import ArtifactEvent
-from parsers.prefetch import PrefetchParser
-from parsers.lnk import LNKParser
-from parsers.jumplist import JumpListParser
-from parsers.amcache import AmcacheParser
-from parsers.userassist import UserAssistParser
-from parsers.bam import BAMParser
-from parsers.shellbag import ShellbagParser
-from parsers.recyclebin import RecycleBinParser
-from parsers.recentdocs import RecentDocsParser
-from parsers.shimcache import ShimCacheParser
-from parsers import PARSER_REGISTRY
-
-_parse_prefetch = PrefetchParser().parse
-_parse_amcache = AmcacheParser().parse
-_parse_userassist = UserAssistParser().parse
-_parse_bam = BAMParser().parse
-_parse_lnk = LNKParser().parse
-_parse_jumplist = JumpListParser().parse
-_parse_shellbag = ShellbagParser().parse
-_parse_recentdocs = RecentDocsParser().parse
-_parse_recyclebin = RecycleBinParser().parse
-_parse_shimcache = ShimCacheParser().parse
-
-
-def _parse_prefetch_file_unused(path: str | Path) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-        if len(data) < 8:
-            return events
-        version = struct.unpack_from("<I", data, 0)[0]
-        if version == 0x11:
-            name_offset = 0x54
-            name_length = struct.unpack_from("<I", data, 0x50)[0] * 2
-            name_end = min(name_offset + name_length, len(data))
-            pf_name = data[name_offset:name_end].decode("utf-16-le", errors="replace").rstrip("\x00")
-        else:
-            pf_name = Path(path).stem
-
-        file_name = Path(path).name
-        run_count = 0
-        if len(data) >= 0x90:
-            run_count = struct.unpack_from("<I", data, 0x80)[0]
-
-        for i in range(min(run_count, 10)):
-            try:
-                if len(data) >= 0x98 + i * 8:
-                    ts_raw = struct.unpack_from("<Q", data, 0x98 + i * 8)[0]
-                    if ts_raw > 0:
-                        ts = datetime(1601, 1, 1) + timedelta(microseconds=ts_raw / 10)
-                        events.append(ArtifactEvent(
-                            timestamp=ts.isoformat(),
-                            dt=ts.replace(tzinfo=timezone.utc),
-                            source="Prefetch",
-                            event_type="Prefetch Execution",
-                            artifact_name=pf_name,
-                            target_path=pf_name,
-                            machine_id="N/A",
-                            details={"run_count": run_count, "run_index": i},
-                        ))
-            except (struct.error, OverflowError, OSError):
-                continue
-    except (OSError, struct.error):
-        pass
-    return events
-
-
-def parse_amcache_entries(path: str | Path) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    try:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
-        for line in text.splitlines():
-            parts = line.strip().split("|")
-            if len(parts) >= 4:
-                file_path = parts[0] if len(parts) > 0 else "Unknown"
-                sha1 = parts[1] if len(parts) > 1 else ""
-                write_time = parts[2] if len(parts) > 2 else ""
-                dt = None
-                ts_str = write_time
-                if write_time:
-                    try:
-                        dt = datetime.strptime(write_time, "%Y-%m-%d %H:%M:%S")
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    except ValueError:
-                        pass
-                events.append(ArtifactEvent(
-                    timestamp=ts_str,
-                    dt=dt,
-                    source="Amcache",
-                    event_type="Amcache Entry",
-                    artifact_name=Path(file_path).name,
-                    target_path=file_path,
-                    machine_id="N/A",
-                    details={"sha1": sha1},
-                ))
-    except OSError:
-        pass
-    return events
-
-
-def parse_userassist_entries(entries: list[dict]) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    for entry in entries:
-        name = entry.get("name", "Unknown")
-        run_count = entry.get("run_count", 0)
-        last_execution = entry.get("last_execution", "")
-        dt = None
-        ts_str = last_execution
-        if last_execution:
-            try:
-                if isinstance(last_execution, (int, float)):
-                    dt = datetime(1601, 1, 1) + timedelta(microseconds=last_execution / 10)
-                    dt = dt.replace(tzinfo=timezone.utc)
-                    ts_str = dt.isoformat()
-                else:
-                    dt = datetime.strptime(last_execution, "%Y-%m-%d %H:%M:%S")
-                    dt = dt.replace(tzinfo=timezone.utc)
-            except (ValueError, OverflowError, OSError):
-                pass
-        events.append(ArtifactEvent(
-            timestamp=ts_str,
-            dt=dt,
-            source="UserAssist",
-            event_type="UserAssist Execution",
-            artifact_name=name,
-            target_path=name,
-            machine_id="N/A",
-            details={"run_count": run_count},
-        ))
-    return events
-
-
-def parse_bam_entries(entries: list[dict]) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    for entry in entries:
-        user_sid = entry.get("user_sid", "Unknown")
-        last_run = entry.get("last_run", "")
-        dt = None
-        ts_str = last_run
-        if last_run:
-            try:
-                dt = datetime.strptime(last_run, "%Y-%m-%d %H:%M:%S")
-                dt = dt.replace(tzinfo=timezone.utc)
-            except ValueError:
-                pass
-        events.append(ArtifactEvent(
-            timestamp=ts_str,
-            dt=dt,
-            source="BAM",
-            event_type="BAM Last Run",
-            artifact_name=f"BAM-{user_sid}",
-            target_path=f"BAM-{user_sid}",
-            machine_id=user_sid,
-            details={"user_sid": user_sid},
-        ))
-    return events
-
-
-def parse_lnk_files(path: str | Path) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-        if len(data) < 0x4C or struct.unpack_from("<I", data, 0)[0] != 0x4C:
-            return events
-        target_path = ""
-        try:
-            offset = 0x4C
-            while offset < len(data) - 1:
-                end = data.find(b"\x00\x00", offset)
-                if end == -1:
-                    break
-                chunk = data[offset:end]
-                decoded = chunk.decode("utf-8", errors="replace").rstrip("\x00")
-                if "\\" in decoded or ":" in decoded:
-                    target_path = decoded
-                    break
-                offset = end + 2
-        except (OSError, UnicodeDecodeError):
-            pass
-
-        file_name = Path(path).name
-        mtime = datetime.fromtimestamp(Path(path).stat().st_mtime, tz=timezone.utc)
-        events.append(ArtifactEvent(
-            timestamp=mtime.isoformat(),
-            dt=mtime,
-            source="LNK",
-            event_type="LNK File Created",
-            artifact_name=file_name,
-            target_path=target_path or file_name,
-            machine_id="N/A",
-            details={"file_size": len(data)},
-        ))
-    except (OSError, struct.error):
-        pass
-    return events
-
-
-def parse_jumplists(path: str | Path) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    file_name = Path(path).name
-    try:
-        mtime = datetime.fromtimestamp(Path(path).stat().st_mtime, tz=timezone.utc)
-        events.append(ArtifactEvent(
-            timestamp=mtime.isoformat(),
-            dt=mtime,
-            source="JumpLists",
-            event_type="JumpList Modified",
-            artifact_name=file_name,
-            target_path=file_name,
-            machine_id="N/A",
-            details={},
-        ))
-    except OSError:
-        pass
-    return events
-
-
-def parse_shellbags(entries: list[dict]) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    for entry in entries:
-        path = entry.get("path", "Unknown")
-        mtime_str = entry.get("mtime", "")
-        dt = None
-        if mtime_str:
-            try:
-                dt = datetime.strptime(mtime_str, "%Y-%m-%d %H:%M:%S")
-                dt = dt.replace(tzinfo=timezone.utc)
-            except ValueError:
-                pass
-        events.append(ArtifactEvent(
-            timestamp=mtime_str,
-            dt=dt,
-            source="Shellbag",
-            event_type="Shellbag Access",
-            artifact_name=Path(path).name,
-            target_path=path,
-            machine_id="N/A",
-            details=entry,
-        ))
-    return events
-
-
-def parse_recentdocs(entries: list[dict]) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    for entry in entries:
-        doc_path = entry.get("path", "Unknown")
-        last_accessed = entry.get("last_accessed", "")
-        dt = None
-        if last_accessed:
-            try:
-                dt = datetime.strptime(last_accessed, "%Y-%m-%d %H:%M:%S")
-                dt = dt.replace(tzinfo=timezone.utc)
-            except ValueError:
-                pass
-        events.append(ArtifactEvent(
-            timestamp=last_accessed,
-            dt=dt,
-            source="RecentDocs",
-            event_type="RecentDoc Access",
-            artifact_name=Path(doc_path).name,
-            target_path=doc_path,
-            machine_id="N/A",
-            details=entry,
-        ))
-    return events
-
-
-def parse_recycle_bin(i_files: list[str | Path],
-                      r_files: list[str | Path]) -> list[ArtifactEvent]:
-    events: list[ArtifactEvent] = []
-    for i_path in i_files:
-        try:
-            with open(i_path, "rb") as f:
-                data = f.read()
-            if len(data) < 28:
-                continue
-            version = struct.unpack_from("<Q", data, 0)[0]
-            if version == 2:
-                orig_size = struct.unpack_from("<Q", data, 8)[0]
-                ts_raw = struct.unpack_from("<Q", data, 16)[0]
-                name_len = struct.unpack_from("<I", data, 24)[0]
-                name_offset = 28
-            else:
-                orig_size = struct.unpack_from("<I", data, 8)[0]
-                ts_raw = struct.unpack_from("<I", data, 12)[0]
-                name_offset = 20
-                name_len = len(data) - name_offset
-
-            ts = None
-            if ts_raw > 0:
-                try:
-                    ts = datetime(1601, 1, 1) + timedelta(microseconds=ts_raw / 10)
-                    ts = ts.replace(tzinfo=timezone.utc)
-                except (OverflowError, OSError):
-                    pass
-
-            name = ""
-            try:
-                raw_name = data[name_offset:name_offset + min(name_len, 512)]
-                name = raw_name.decode("utf-16-le" if version == 2 else "utf-8",
-                                       errors="replace").rstrip("\x00")
-            except (UnicodeDecodeError, IndexError):
-                name = Path(i_path).stem
-
-            events.append(ArtifactEvent(
-                timestamp=ts.isoformat() if ts else "",
-                dt=ts,
-                source="RecycleBin",
-                event_type="Deleted File",
-                artifact_name=name,
-                target_path=name,
-                machine_id="N/A",
-                details={"orig_size": orig_size, "deletion_time": ts.isoformat() if ts else ""},
-            ))
-        except (OSError, struct.error):
-            continue
-
-    for r_path in r_files:
-        try:
-            stat = r_path.stat()
-            mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
-            events.append(ArtifactEvent(
-                timestamp=mtime.isoformat(),
-                dt=mtime,
-                source="RecycleBin",
-                event_type="Recycle Bin Artifact",
-                artifact_name=Path(r_path).name,
-                target_path=str(r_path),
-                machine_id="N/A",
-                details={"file_size": stat.st_size},
-            ))
-        except OSError:
-            continue
-
-    return events
-
-
-def ingest_artifacts(artifact_paths: dict[str, list[str | Path]]) -> list[TimelineRecord]:
-    records: list[TimelineRecord] = []
-
-    for pf_path in artifact_paths.get("prefetch", []):
-        for ev in _parse_prefetch(pf_path):
-            records.append(_artifact_to_record(ev))
-
-    for am_path in artifact_paths.get("amcache", []):
-        for ev in _parse_amcache(am_path):
-            records.append(_artifact_to_record(ev))
-
-    for ua in artifact_paths.get("userassist", []):
-        for ev in _parse_userassist([ua] if isinstance(ua, dict) else ua):
-            records.append(_artifact_to_record(ev))
-
-    for bam in artifact_paths.get("bam", []):
-        for ev in _parse_bam([bam] if isinstance(bam, dict) else bam):
-            records.append(_artifact_to_record(ev))
-
-    for lnk_path in artifact_paths.get("lnk", []):
-        for ev in _parse_lnk(lnk_path):
-            records.append(_artifact_to_record(ev))
-
-    for jl_path in artifact_paths.get("jumplists", []):
-        for ev in _parse_jumplist(jl_path):
-            records.append(_artifact_to_record(ev))
-
-    for sb in artifact_paths.get("shellbags", []):
-        for ev in _parse_shellbag([sb] if isinstance(sb, dict) else sb):
-            records.append(_artifact_to_record(ev))
-
-    for rd in artifact_paths.get("recentdocs", []):
-        for ev in _parse_recentdocs([rd] if isinstance(rd, dict) else rd):
-            records.append(_artifact_to_record(ev))
-
-    r_i = artifact_paths.get("recycle_i", [])
-    r_r = artifact_paths.get("recycle_r", [])
-    rb_parser = RecycleBinParser()
-    for ev in rb_parser.parse(Path(r_i[0])) if r_i else []:
-        records.append(_artifact_to_record(ev))
-    for ev in rb_parser.parse(Path(r_r[0])) if r_r else []:
-        records.append(_artifact_to_record(ev))
-
-    for sc in artifact_paths.get("shimcache", []):
-        for ev in _parse_shimcache(sc):
-            records.append(_artifact_to_record(ev))
-
-    records.sort(key=_record_sort_key)
-    return records
-
-
-def _artifact_to_record(ev: ArtifactEvent) -> TimelineRecord:
-    return TimelineRecord(
-        timestamp=ev.timestamp,
-        dt=ev.dt,
-        artifact_source=ev.source,
-        event_type=ev.event_type,
-        target_path=ev.target_path,
-        machine_id=ev.machine_id,
-        artifact_name=ev.artifact_name,
-        raw={"parser": ev.source, **ev.details},
-    )
+# All parsing goes through the tested Tier 1 engine (AcquisitionEngine)
+# and the direct robust parsers it reuses (lnk_forensics, prefetch_parser,
+# jumplists_parser). The legacy parsers/ wrapper package was removed; there
+# is intentionally no other ingestion path in this file. Run Analysis
+# (ControlPanel.analysisRequested -> MainWindow._run_acquisition) is the
+# single entry point from the GUI into acquisition.
 
 
 def _record_sort_key(record: TimelineRecord):
@@ -1337,7 +956,7 @@ class TimelineTable(QTableWidget):
                     self.setItem(row, column, item)
                 if threat_map:
                     threats = threat_map.get(id(record), [])
-                    severity = ThreatEngine().max_severity(threats)
+                    severity = SHARED_THREAT_ENGINE.max_severity(threats)
                     if severity == "high":
                         for column in range(len(values)):
                             self.item(row, column).setBackground(QColor("#5c1a1a"))
@@ -1624,12 +1243,18 @@ class ShellbagsExplorer(QWidget):
             self._tree.expandToDepth(1)
 
             total_shell = len(shell_records)
-            self._summary.setText(
-                f"Shell items: {total_shell} | "
-                f"<span style='color:#3fb950'>Active: {active_count}</span> | "
-                f"<span style='color:#f85149'>Deleted: {deleted_count}</span> | "
-                f"<span style='color:#d29922'>Moved: {moved_count}</span> | "
-                f"<span style='color:#a371f7'>Renamed: {renamed_count}</span>")
+            if total_shell == 0:
+                self._summary.setText(
+                    "No shell items loaded — run <b>Run Analysis</b> with the "
+                    "'Shellbags' checkbox ticked (or load a timeline that "
+                    "contains source <b>Shellbag</b>).")
+            else:
+                self._summary.setText(
+                    f"Shell items: {total_shell} | "
+                    f"<span style='color:#3fb950'>Active: {active_count}</span> | "
+                    f"<span style='color:#f85149'>Deleted: {deleted_count}</span> | "
+                    f"<span style='color:#d29922'>Moved: {moved_count}</span> | "
+                    f"<span style='color:#a371f7'>Renamed: {renamed_count}</span>")
         finally:
             self._tree.setUpdatesEnabled(True)
             self._detail.setUpdatesEnabled(True)
@@ -1769,7 +1394,8 @@ class ArtifactSubView(QWidget):
                     if rec.artifact_source not in ("LNK", "JumpLists", "Amcache"):
                         continue
                 elif sub_view_type == "Metadata":
-                    if rec.artifact_source not in ("Shellbag", "RecentDocs"):
+                    if rec.artifact_source not in ("Shellbag", "RecentDocs",
+                                                   "RegistryMRU"):
                         continue
                 elif sub_view_type == "Bin Items":
                     if rec.artifact_source != "RecycleBin":
@@ -2736,7 +2362,10 @@ class ControlPanel(QWidget):
         self.setMinimumWidth(270)
         self.setMaximumWidth(520)
 
-        root = QVBoxLayout(self)
+        # Scrollable content: the panel grew taller than small windows, which
+        # made widgets paint over each other. The stats line stays pinned.
+        inner = QWidget()
+        root = QVBoxLayout(inner)
         root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(8)
 
@@ -2832,8 +2461,12 @@ class ControlPanel(QWidget):
             lambda _checked: self.filterChanged.emit(self.search_input.text()))
         root.addWidget(self.threat_toggle)
 
-        ingestion_caption = QLabel("Ingestion toggles")
+        ingestion_caption = QLabel("Displayed sources (filter)")
         ingestion_caption.setObjectName("mutedLabel")
+        ingestion_caption.setToolTip(
+            "Filters which already-loaded records are VISIBLE in the "
+            "timeline. These do not run acquisition — use the Tier 1 "
+            "Acquisition checkboxes below for that.")
         root.addWidget(ingestion_caption)
 
         self.ingest_executions = QCheckBox("Executions (Prefetch, UserAssist, BAM)")
@@ -2848,7 +2481,8 @@ class ControlPanel(QWidget):
             lambda: self.filterChanged.emit(""))
         root.addWidget(self.ingest_loaded)
 
-        self.ingest_metadata = QCheckBox("Metadata (Shellbag, RecentDocs)")
+        self.ingest_metadata = QCheckBox(
+            "Metadata (Shellbag, RecentDocs, RunMRU)")
         self.ingest_metadata.setChecked(True)
         self.ingest_metadata.toggled.connect(
             lambda: self.filterChanged.emit(""))
@@ -2860,8 +2494,11 @@ class ControlPanel(QWidget):
             lambda: self.filterChanged.emit(""))
         root.addWidget(self.ingest_bin)
 
-        acq_caption = QLabel("Tier 1 Acquisition")
+        acq_caption = QLabel("Tier 1 Acquisition (Run Analysis)")
         acq_caption.setObjectName("mutedLabel")
+        acq_caption.setToolTip(
+            "Tick the artifacts you want the Run Analysis button to "
+            "acquire from the evidence root / live host.")
         root.addWidget(acq_caption)
 
         self.acquire_checks: dict[str, QCheckBox] = {}
@@ -2898,7 +2535,9 @@ class ControlPanel(QWidget):
         root.addLayout(root_row)
 
         self.acquire_button = QPushButton("Run Analysis")
-        self.acquire_button.setToolTip("Parse checked artifacts and merge into the timeline")
+        self.acquire_button.setToolTip(
+            "Acquire the checked Tier 1 artifacts and merge them into "
+            "the timeline")
         self.acquire_button.clicked.connect(
             lambda: self.analysisRequested.emit(self.selected_artifacts()))
         self.acquire_button.setEnabled(bool(self.acquire_checks))
@@ -2913,7 +2552,23 @@ class ControlPanel(QWidget):
 
         self.stats_label = QLabel("0 events")
         self.stats_label.setObjectName("mutedLabel")
-        root.addWidget(self.stats_label)
+
+        scroll = QScrollArea()
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        stats_holder = QWidget()
+        stats_layout = QHBoxLayout(stats_holder)
+        stats_layout.setContentsMargins(14, 8, 14, 14)
+        stats_layout.addWidget(self.stats_label, 1)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(scroll, 1)
+        outer.addWidget(stats_holder)
 
     def search_text(self) -> str:
         return self.search_input.text()
@@ -3477,8 +3132,16 @@ class MainWindow(QMainWindow):
                                  f"Could not load tier1_artifacts.py:\n\n{exc}")
             return
         if not selected:
-            QMessageBox.information(self, "Run Analysis",
-                                    "Check at least one Tier 1 artifact first.")
+            QMessageBox.information(
+                self, "Run Analysis",
+                "No Tier 1 artifacts are selected.\n\n"
+                "Tick at least one checkbox in the 'Tier 1 Acquisition "
+                "(Run Analysis)' section of the left sidebar — e.g. "
+                "Prefetch, LNK Files or Jump Lists — then click "
+                "Run Analysis again.\n\n"
+                "Note: the 'Displayed sources' toggles only filter which "
+                "already-loaded records are visible; they do not run "
+                "acquisition.")
             return
         root = self.controls.evidence_input.text().strip() or None
         if root and not Path(root).is_dir():
@@ -3518,6 +3181,16 @@ class MainWindow(QMainWindow):
         self._apply_filter()
         failed = {k: v for k, v in report.items()
                   if v.get("status") in ("failed", "unavailable")}
+        # an artifact that produced nothing BUT has an explanatory note
+        # (locked profile skipped, no entries recovered, ...) also needs
+        # the analyst's attention — unless it is just "all duplicates".
+        empty_with_note = {
+            k: v for k, v in report.items()
+            if v.get("status") == "empty"
+            and v.get("count", 0) == 0
+            and v.get("note")
+            and "duplicate(s) skipped" not in v.get("note", "")}
+        issues = {**failed, **empty_with_note}
         parts = [f"{added:,} new events"]
         skipped_dups = len(raws) - added
         if skipped_dups:
@@ -3525,13 +3198,13 @@ class MainWindow(QMainWindow):
         summary = ", ".join(parts) + f" from {len(selected)} artifact(s)"
         self.controls.set_acquire_status(summary)
         message = f"Acquired {summary}"
-        if failed:
-            message += f" \u00b7 {len(failed)} artifact(s) with issues"
+        if issues:
+            message += f" \u00b7 {len(issues)} artifact(s) with issues"
         self.statusBar().showMessage(message)
-        if failed:
+        if issues:
             details = "\n".join(
                 f"\u2022 {k}: {v.get('note') or v.get('status')}"
-                for k, v in failed.items())
+                for k, v in issues.items())
             QMessageBox.warning(
                 self, "Acquisition finished with issues",
                 f"{summary}.\n\nThe following need attention:\n\n{details}")
@@ -3598,7 +3271,8 @@ class MainWindow(QMainWindow):
                 if record.artifact_source in ("LNK", "JumpLists", "Amcache"):
                     continue
             if not ingestion.get("metadata", True):
-                if record.artifact_source in ("Shellbag", "RecentDocs"):
+                if record.artifact_source in ("Shellbag", "RecentDocs",
+                                              "RegistryMRU"):
                     continue
             if not ingestion.get("bin_items", True):
                 if record.artifact_source == "RecycleBin":
@@ -3636,10 +3310,12 @@ class MainWindow(QMainWindow):
                 self.graph.set_data(shown, focus=None, refit=True)
                 self.graph_page.refresh()
             if query or source is not None or start_dt or end_dt or threat_high \
-                    or bookmarked_only:
+                    or bookmarked_only or not all(ingestion.values()):
                 message = (f"Showing {len(shown):,} of {len(self.records):,} events")
                 if not regex_ok:
                     message += " \u00b7 invalid regex, matched as plain text"
+                if not shown and self.records:
+                    message += " \u2014 nothing matches; check source, ingestion and time filters"
                 self.statusBar().showMessage(message)
             elif self.records:
                 self.statusBar().showMessage(

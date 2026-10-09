@@ -99,11 +99,14 @@ python orchestrator.py --all -o parsed_output /path/to/artifacts/
 # Run selected parsers
 python orchestrator.py --select prefetch lnk bam -o output /path/to/artifacts/
 
+# Route single files to their Tier 1 parser (no text-export fallback)
+python orchestrator.py --auto suspicious.lnk TRACE-01.pf
+
 # Merge parsed outputs into a single unified timeline
 python orchestrator.py --merge parsed_output --merge-output unified.json
 ```
 
-Every parser emits the same **schema v1.0** (`timestamp`, `source`, `event_type`, `artifact_name`, `target_path`, `machine_id`, `details`), so the GUI consumes CLI output with no extra conversion.
+Every record enforces the strict **unified JSON v1.0 schema** (`timestamp_utc`, `timestamp_raw`, `source_file`, `source_hash`, `record_ref`, `parser`, `parser_version`, `event_type`, `target_path`, `details`, `raw_binary_hex`) plus timeline bridge keys (`timestamp`, `timestamp_type`, `source`, `artifact_type`, `artifact_name`), so the GUI consumes CLI output with no extra conversion. Merging deduplicates by `source_hash` (SHA-256).
 
 ---
 
@@ -112,23 +115,21 @@ Every parser emits the same **schema v1.0** (`timestamp`, `source`, `event_type`
 ```
 dark/
 ├── dfir_timeline_ui.py        # PySide6 GUI application
-├── orchestrator.py            # CLI: run, select and merge parsers
+├── orchestrator.py            # CLI: Tier 1 acquisition, routing, merging
+├── tier1_artifacts.py         # AcquisitionEngine + 12 Tier 1 collectors
+├── lnk_forensics.py           # LNK deep parser (reused by tier1/GUI)
+├── prefetch_parser.py         # Prefetch deep parser (reused by tier1/GUI)
+├── jumplists_parser.py        # JumpLists deep parser (reused by tier1/GUI)
+├── shellbag_parser.py         # Shellbags deep parser (reused by tier1/GUI)
 ├── requirements.txt
 ├── assets/
 │   └── logo.svg
-└── parsers/
-    ├── base.py                # BaseParser, ArtifactEvent, schema v1.0
-    ├── prefetch.py            # Prefetch (.pf execution evidence)
-    ├── lnk.py                 # LNK shortcuts
-    ├── jumplist.py            # JumpLists (automatic / custom)
-    ├── amcache.py             # Amcache program execution
-    ├── userassist.py          # UserAssist GUI program launches
-    ├── bam.py                 # BAM background activity monitor
-    ├── shellbag.py            # Shellbags folder hierarchy
-    ├── recyclebin.py          # Recycle Bin $I/$R deleted files
-    ├── recentdocs.py          # RecentDocs MRU
-    └── shimcache.py           # AppCompatCache execution shim
 ```
+
+> **Architecture note:** all ingestion routes exclusively through
+> `tier1_artifacts.py` (plus the four direct robust parsers above). The
+> legacy `parsers/` wrapper package was removed — it read fields from
+> wrong offsets and fed raw text exports into mismatched parsers.
 
 ---
 

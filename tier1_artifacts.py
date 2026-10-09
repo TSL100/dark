@@ -18,7 +18,8 @@ records that satisfy BOTH:
 
 Covered artifacts (ids in TIER1, in checklist order):
   prefetch    C:\\Windows\\Prefetch\\*.pf (reuses prefetch_parser)
-  amcache     C:\\Windows\\appcompat\\Programs\\Amcache.hve (needs regipy)
+  amcache     Amcache.hve (Win10 InventoryApplicationFile + legacy Win7/8
+              Root\\File + Programs + orphan/copied hives; needs regipy)
   userassist  NTUSER.DAT UserAssist keys (needs regipy)
   bam         SYSTEM hive BAM keys (needs regipy)
   lnk         %AppData%\\...\\Recent\\*.lnk (reuses lnk_forensics)
@@ -27,6 +28,8 @@ Covered artifacts (ids in TIER1, in checklist order):
   zoneid      Zone.Identifier ADS on Recent/Desktop/Downloads files
   usb         SYSTEM USBSTOR + MountedDevices (needs regipy)
   mru         NTUSER.DAT RecentDocs/RunMRU/TypedPaths/OpenSaveMRU (needs regipy)
+  shellbag    NTUSER.DAT BagMRU/Bags folder-browsing history, all four
+              classic + Local Settings roots (reuses shellbag_parser)
   powershell  ConsoleHost_history.txt per user
 
 Deduplication: every record carries source_hash = SHA-256 over the canonical
@@ -39,7 +42,9 @@ Honesty rules applied throughout:
   the exact path and a remediation hint, never a crash. (DFIR norm is an
   offline image or triage copy; `reg save` can produce readable copies.)
 * Amcache value semantics are labeled (link_date is PE-local time; sha1 and
-  path matches are labeled candidates; key LastWrite is the fallback clock).
+  path matches are labeled with sha1_source = value/key_name; sizes accept
+  int/decimal/0x-hex/bare-hex/bytes; timestamps carry filetime_pair /
+  link_date / install_date / key_lastwrite as timestamp_source).
 * Timestamps always carry timestamp_source (destlist_last_access,
   lnk_target_modification, key_lastwrite, file_mtime, ...).
 * raw_binary_hex holds full bytes under 4 KiB, else the first 512 bytes with
@@ -48,8 +53,8 @@ Honesty rules applied throughout:
   NetBIOS names, volume serials, DROID GUIDs and USB serials.
 
 Dependencies: Python 3.8+ stdlib only, plus OPTIONAL regipy (pip install
-regipy) for the five registry-backed artifacts. The three file parsers are
-reused from this directory; nothing else is required.
+regipy) for the six registry-backed artifacts. The four file/deep parsers
+are reused from this directory; nothing else is required.
 """
 
 from __future__ import annotations
@@ -63,8 +68,11 @@ import json
 import ntpath
 import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 
 TOOL = "tier1_artifacts.py"
 VERSION = "1.0.0"
@@ -101,6 +109,15 @@ try:
 except ImportError:  # pragma: no cover
     jl_make_events = parse_jumplist_file = iter_jumplist_files = None
     JL_VERSION = "1.0.0"
+# Amcache hive-walking helpers live here (not in a wrapper package) so the
+# Run Analysis engine and any direct caller share identical values.
+try:
+    import shellbag_parser
+    from shellbag_parser import iter_shellbag_entries
+    SB_VERSION = getattr(shellbag_parser, "VERSION", "1.0.0")
+except ImportError:  # pragma: no cover
+    iter_shellbag_entries = None
+    SB_VERSION = "1.0.0"
 
 FILETIME_EPOCH = dt.datetime(1601, 1, 1, tzinfo=dt.timezone.utc)
 MAX_RAW_HEX_FULL = 4096
@@ -121,6 +138,7 @@ TIER1 = [
     {"id": "zoneid", "label": "Zone.Identifier", "needs_regipy": False},
     {"id": "usb", "label": "USB History", "needs_regipy": True},
     {"id": "mru", "label": "RecentDocs / RunMRU / TypedPaths", "needs_regipy": True},
+    {"id": "shellbag", "label": "Shellbags", "needs_regipy": True},
     {"id": "powershell", "label": "PowerShell History", "needs_regipy": False},
 ]
 TIER1_IDS = [a["id"] for a in TIER1]
@@ -229,7 +247,7 @@ def _require_regipy():
         raise Tier1Error("needs: pip install regipy")
 
 
-def _open_hive(path):
+def _open_hive(path, notes=None):
     _require_regipy()
     if not os.path.isfile(path):
         raise Tier1Error(f"hive not present: {path}")
@@ -238,9 +256,127 @@ def _open_hive(path):
     except Tier1Error:
         raise
     except Exception as exc:  # locked / corrupt / unreadable
+        snap = _snapshot_hive_via_reg(
+            path, notes if notes is not None else [])
+        if snap is not None:
+            try:
+                return RegistryHive(snap)
+            except Exception as exc2:
+                raise Tier1Error(
+                    f"cannot open hive {path} (locked; snapshot failed: {exc2})")
         raise Tier1Error(f"cannot open hive {path} ({exc}). "
                          f"Live hives are locked; analyze an offline image or "
                          f"a triage copy (e.g. via `reg save`).")
+
+
+_TEMP_HIVES: list[str] = []
+
+
+def _drop_quietly(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def cleanup_temp_hives():
+    for tmp in _TEMP_HIVES:
+        _drop_quietly(tmp)
+    _TEMP_HIVES.clear()
+
+
+def _current_usernames():
+    """Candidate names for the current interactive profile (plural: the
+    USERNAME env var and the profile folder name often disagree)."""
+    names = set()
+    for var in ("USERNAME", "USER"):
+        value = os.environ.get(var)
+        if value:
+            names.add(value.lower())
+    try:
+        home_base = os.path.basename(os.path.abspath(os.path.expanduser("~")))
+        if home_base:
+            names.add(home_base.lower())
+    except Exception:
+        pass
+    return names
+
+
+_PROFILE_SIDS: dict[str, str] | None = None
+
+
+def _profile_sid_map() -> dict[str, str]:
+    """Map normcased profile directory -> SID (live host, via `reg query`)."""
+    global _PROFILE_SIDS
+    if _PROFILE_SIDS is not None:
+        return _PROFILE_SIDS
+    _PROFILE_SIDS = {}
+    if os.name != "nt" or shutil.which("reg") is None:
+        return _PROFILE_SIDS
+    try:
+        proc = subprocess.run(
+            ["reg", "query",
+             r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList",
+             "/s", "/v", "ProfileImagePath"],
+            capture_output=True, timeout=60)
+    except Exception:
+        return _PROFILE_SIDS
+    current_sid: str | None = None
+    marker = "PROFILELIST\\"
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        text = line.strip()
+        if text.upper().startswith("HKEY"):
+            idx = text.upper().find(marker)
+            current_sid = (text[idx + len(marker):].split("\\")[0]
+                           if idx >= 0 else None)
+        elif "ProfileImagePath" in text and current_sid:
+            parts = text.split(None, 2)
+            if len(parts) >= 3:
+                profile = os.path.expandvars(parts[2].strip())
+                _PROFILE_SIDS[os.path.normcase(profile)] = current_sid
+            current_sid = None
+    return _PROFILE_SIDS
+
+
+def _snapshot_hive_via_reg(path, notes):
+    """Read a locked live hive through a `reg save` snapshot.
+
+    Only for unambiguous live mappings (HKLM\\SYSTEM, current-user HKCU).
+    Returns the temp snapshot path (tracked for cleanup) or None when the
+    fallback does not apply. Parsing itself stays pure-Python (regipy).
+    """
+    if os.name != "nt" or shutil.which("reg") is None:
+        return None
+    norm = os.path.normcase(os.path.abspath(path))
+    key = None
+    if norm.endswith(os.path.normcase(os.path.join("System32", "config", "SYSTEM"))):
+        key = r"HKLM\SYSTEM"
+    elif os.path.basename(path).upper() == "NTUSER.DAT":
+        profile_dir = os.path.dirname(os.path.abspath(path))
+        if os.path.basename(profile_dir).lower() in _current_usernames():
+            key = "HKCU"
+        else:
+            # another user's locked profile: snapshot via HKU\<SID>
+            sid = _profile_sid_map().get(os.path.normcase(profile_dir))
+            if sid:
+                key = f"HKU\\{sid}"
+    if key is None:
+        return None
+    fd, tmp = tempfile.mkstemp(prefix="tier1_", suffix=".hiv")
+    os.close(fd)
+    try:
+        proc = subprocess.run(["reg", "save", key, tmp, "/y"],
+                              capture_output=True, timeout=240)
+    except Exception:
+        _drop_quietly(tmp)
+        return None
+    if proc.returncode != 0 or not os.path.isfile(tmp) or os.path.getsize(tmp) == 0:
+        _drop_quietly(tmp)
+        return None
+    _TEMP_HIVES.append(tmp)
+    notes.append(f"{os.path.basename(path)} is locked live; parsed a "
+                 f"`reg save {key}` snapshot instead (temp copy auto-removed)")
+    return tmp
 
 
 def _get_key(hive, path):
@@ -700,31 +836,46 @@ def collect_powershell(paths):
 # registry-backed parsers (need regipy)
 # --------------------------------------------------------------------------
 
-def _iter_ntuser_keys(paths):
-    """Yield (user, ntuser_path, RegistryHive) for readable NTUSER.DAT files."""
+def _iter_ntuser_keys(paths, failures=None):
+    """Return (user, ntuser_path, RegistryHive, note) for readable NTUSER.DATs.
+
+    Profiles that cannot be opened are collected in *failures* instead of
+    aborting the whole run; Tier1Error is raised only when no hive at all
+    could be opened.
+    """
     _require_regipy()
+    errors = failures if failures is not None else []
+    opened: list[tuple] = []
     for user in paths.users:
         hive_path = os.path.join(user, "NTUSER.DAT")
         if not os.path.isfile(hive_path):
             continue
+        notes: list[str] = []
         try:
-            yield user, hive_path, RegistryHive(hive_path)
-        except Exception as exc:
-            raise Tier1Error(f"cannot open {hive_path} ({exc}). Live hives are "
-                             f"locked; use an offline image or triage copy.")
+            opened.append((user, hive_path, _open_hive(hive_path, notes),
+                           (notes[0] if notes else None)))
+        except Tier1Error as exc:
+            errors.append(f"cannot open {hive_path}: {exc}")
+    if not opened and errors:
+        raise Tier1Error("; ".join(errors))
+    return opened
 
 
 def collect_userassist(paths, machine_id=None):
     _require_regipy()
     base = ("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist")
     records, notes, skipped = [], [], 0
+    failures: list[str] = []
     try:
-        hives = list(_iter_ntuser_keys(paths))
+        hives = _iter_ntuser_keys(paths, failures)
     except Tier1Error as exc:
         return [], [str(exc)]
     if not hives:
         return [], ["no readable NTUSER.DAT found"]
-    for user, hive_path, hive in hives:
+    notes.extend(failures)
+    for user, hive_path, hive, hive_note in hives:
+        if hive_note:
+            notes.append(hive_note)
         root = _get_key(hive, "\\" + base)
         if root is None:
             notes.append(f"{user}: no UserAssist key")
@@ -797,13 +948,17 @@ def collect_mru(paths, machine_id=None):
         ("TypedPaths", "Path Typed"),
     ]
     records, notes = [], []
+    failures: list[str] = []
     try:
-        hives = list(_iter_ntuser_keys(paths))
+        hives = _iter_ntuser_keys(paths, failures)
     except Tier1Error as exc:
         return [], [str(exc)]
     if not hives:
         return [], ["no readable NTUSER.DAT found"]
-    for user, hive_path, hive in hives:
+    notes.extend(failures)
+    for user, hive_path, hive, hive_note in hives:
+        if hive_note:
+            notes.append(hive_note)
         who = os.path.basename(user)
         for sub, event_type in jobs:
             key = _get_key(hive, "\\" + base + "\\" + sub)
@@ -892,14 +1047,78 @@ def collect_mru(paths, machine_id=None):
     return records, notes
 
 
+def collect_shellbag(paths, machine_id=None):
+    """BagMRU/Bags folder-browsing history (four roots per user hive).
+
+    Entry timestamps come from the child folder's bag LastWrite (the
+    moment Explorer last wrote that folder's view), falling back to the
+    parent bag, the key LastWrite or the shell item's FAT dates - always
+    labeled in details.timestamp_source.
+    """
+    _require_regipy()
+    if iter_shellbag_entries is None:
+        return [], ["shellbag_parser module unavailable"]
+    records, notes = [], []
+    failures: list[str] = []
+    try:
+        hives = _iter_ntuser_keys(paths, failures)
+    except Tier1Error as exc:
+        return [], [str(exc)]
+    if not hives:
+        return [], ["no readable NTUSER.DAT found"]
+    notes.extend(failures)
+    for user, hive_path, hive, hive_note in hives:
+        if hive_note:
+            notes.append(hive_note)
+        who = os.path.basename(user)
+        count = 0
+        try:
+            entries = iter_shellbag_entries(hive)
+            for entry in entries:
+                stamp = entry.get("timestamp")
+                if not stamp:
+                    continue
+                records.append(make_record(
+                    timestamp_utc=stamp,
+                    timestamp_raw=stamp,
+                    source_file=hive_path,
+                    record_ref=entry.get("record_ref") or "BagMRU",
+                    parser="tier1_shellbag",
+                    parser_version=SB_VERSION,
+                    source="Shellbag",
+                    artifact_type="shellbag_entry",
+                    artifact_name=entry.get("name") or _base(entry.get("path")),
+                    event_type="Folder Browsed",
+                    target_path=entry.get("path"),
+                    machine_id=machine_id,
+                    details={"user": who,
+                             "root": entry.get("root"),
+                             "bag_slot": entry.get("bag_slot"),
+                             "timestamp_source": entry.get("timestamp_source"),
+                             "item_mtime": entry.get("item_mtime"),
+                             "item_type": entry.get("item_type"),
+                             "deleted": False,
+                             "renamed": False},
+                    raw_bytes=entry.get("raw") or b""))
+                count += 1
+        except Exception as exc:  # noqa: BLE001 - one bad hive never kills a run
+            notes.append(f"{who}: shellbag walk failed ({exc})")
+            continue
+        if not count:
+            notes.append(f"{who}: no shellbag entries recovered")
+    if not records and not notes:
+        notes.append("no shellbag entries recovered")
+    return records, notes
+
+
 def collect_bam(paths, machine_id=None):
     _require_regipy()
     sys_path = os.path.join(paths.windows, "System32", "config", "SYSTEM")
+    records, notes = [], []
     try:
-        hive = _open_hive(sys_path)
+        hive = _open_hive(sys_path, notes)
     except Tier1Error as exc:
         return [], [str(exc)]
-    records, notes = [], []
     for rel in ("ControlSet001\\Services\\bam\\State\\UserSettings",
                 "ControlSet001\\Services\\bam\\UserSettings"):
         root = _get_key(hive, "\\" + rel)
@@ -947,11 +1166,11 @@ def collect_bam(paths, machine_id=None):
 def collect_usb(paths, machine_id=None):
     _require_regipy()
     sys_path = os.path.join(paths.windows, "System32", "config", "SYSTEM")
+    records, notes = [], []
     try:
-        hive = _open_hive(sys_path)
+        hive = _open_hive(sys_path, notes)
     except Tier1Error as exc:
         return [], [str(exc)]
-    records, notes = [], []
     enum = _get_key(hive, "\\ControlSet001\\Enum")
     if enum is not None:
         usb = None
@@ -1051,82 +1270,448 @@ def _decode_mounted(raw):
     return bytes(raw).hex()[:128], "raw_hex"
 
 
-def collect_amcache(paths, machine_id=None):
-    _require_regipy()
-    hive_path = os.path.join(paths.windows, "appcompat", "Programs", "Amcache.hve")
-    try:
-        hive = _open_hive(hive_path)
-    except Tier1Error as exc:
-        return [], [str(exc)]
-    root = _get_key(hive, "\\Root\\InventoryApplicationFile")
-    if root is None:
-        return [], ["Amcache has no InventoryApplicationFile"]
-    records, notes = [], []
-    for entry in root.iter_subkeys():
-        values = {}
-        for value in entry.iter_values():
-            values[value.name] = value.value
+AMCACHE_HIVE_LIMIT = 10
+AMCACHE_HIVE_DEPTH = 7
 
-        def pick(*names):
-            for name in names:
-                hit = values.get(name)
-                if isinstance(hit, str) and hit:
-                    return hit
+
+def _find_amcache_hives(paths, standard):
+    """Standard path first, then orphan/copied hives (incl. VSS copies).
+
+    Orphan search only runs for an evidence root (offline image / triage
+    folder); walking a live system drive is never attempted.
+    """
+    candidates, seen = [], set()
+    if os.path.isfile(standard):
+        seen.add(os.path.normcase(os.path.abspath(standard)))
+        candidates.append(standard)
+    if not paths.root:
+        return candidates
+    base = os.path.abspath(paths.root)
+    for dirpath, dirnames, filenames in os.walk(base):
+        if os.path.relpath(dirpath, base).count(os.sep) >= AMCACHE_HIVE_DEPTH:
+            dirnames[:] = []
+        for fname in filenames:
+            low = fname.lower()
+            ext = os.path.splitext(fname)[1].lower()
+            if not (low.startswith("amcache") and ext in (".hve", "")):
+                continue
+            full = os.path.join(dirpath, fname)
+            norm = os.path.normcase(os.path.abspath(full))
+            if norm in seen:
+                continue
+            seen.add(norm)
+            candidates.append(full)
+            if len(candidates) >= AMCACHE_HIVE_LIMIT:
+                return candidates
+    return candidates
+
+
+# --------------------------------------------------------------------------
+# Amcache hive-walking helpers (multi-generation extraction)
+#
+# Supported layouts (all under the hive ``Root`` key):
+# * ``InventoryApplicationFile`` - Windows 10 1703+ (current format)
+# * ``File``                    - legacy Windows 7/8/8.1 format
+# * ``Programs``                - early Windows 10 / 8.1 application rows
+#
+# Every extraction path handles SHA-1 (``SHA1``/``FileId`` values or the
+# legacy key name), Size (ints, decimal/hex strings, LE byte blobs) and
+# timestamps (``LowDateTime``/``HighDateTime`` FILETIME pairs,
+# ``LinkDate``/``InstallDate`` strings, key LastWrite fallback).
+# --------------------------------------------------------------------------
+
+#: (registry section name, internal section id)
+_FILE_SECTIONS = (("InventoryApplicationFile", "inventory_file"),
+                  ("File", "legacy_file"))
+_PROGRAM_SECTIONS = (("Programs", "program"),)
+
+SECTION_EVENT = {
+    "inventory_file": "Program Executed",
+    "legacy_file": "Program Executed",
+    "program": "Program Installed",
+}
+
+_DATE_FORMATS = (
+    "%m/%d/%Y %H:%M:%S",
+    "%m/%d/%y %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y%m%d",
+    "%Y-%m-%d",
+    "%d/%m/%Y %H:%M:%S",
+)
+
+
+def parse_size(value):
+    """Registry size values arrive as int, decimal str, hex str or bytes."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+        if 0 < len(raw) <= 8:
+            return int.from_bytes(raw, "little")
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
             return None
+        try:
+            if text.lower().startswith("0x"):
+                return int(text, 16)
+            if text.isdigit():
+                return int(text, 10)
+            if re.fullmatch(r"[0-9a-fA-F]+", text) and re.search(r"[a-fA-F]", text):
+                return int(text, 16)
+        except ValueError:
+            return None
+    return None
 
-        path = pick("LowerCaseLongPath", "LongPath")
-        if path is None:
-            for hit in values.values():
-                if isinstance(hit, str) and PATH_RE.search(hit):
-                    path = hit
-                    break
-        sha1 = None
-        for hit in values.values():
-            if isinstance(hit, str):
-                found = SHA1_RE.search(hit)
-                if found:
-                    sha1 = found.group(0).lower()
-                    break
-        link_raw = pick("LinkDate")
-        link_iso, link_method = None, None
-        if link_raw:
-            for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%y %H:%M:%S",
-                        "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S"):
-                try:
-                    naive = dt.datetime.strptime(link_raw.strip(), fmt)
-                    link_iso = naive.replace(
-                        tzinfo=dt.timezone.utc).isoformat()
-                    link_method = "link_date"
-                    break
-                except ValueError:
-                    continue
-        stamp = link_iso or _key_time_iso(entry)
-        method = link_method or "key_lastwrite"
-        name = pick("Name") or entry.name.split("|")[0]
-        records.append(make_record(
-            timestamp_utc=stamp,
-            timestamp_raw=link_raw or stamp,
-            source_file=hive_path,
-            record_ref=f"InventoryApplicationFile\\{entry.name}",
-            parser="tier1_amcache",
-            parser_version=VERSION,
-            source="Amcache",
-            artifact_type="amcache_file",
-            artifact_name=f"Amcache {name}",
-            event_type="Program Executed",
-            target_path=path or name,
-            machine_id=machine_id,
-            details={"program": pick("ProductName"),
-                     "publisher": pick("Publisher"),
-                     "version": pick("Version", "BinFileVersion"),
-                     "binary_type": pick("BinaryType"),
-                     "sha1_candidate": sha1,
-                     "size": values.get("Size") if isinstance(
-                         values.get("Size"), int) else None,
-                     "timestamp_source": method},
-            raw_bytes=b""))
-    if not records:
-        notes.append("no InventoryApplicationFile entries recovered")
+
+def _text(value):
+    """Decode a registry value to clean text (handles UTF-16LE blobs)."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+        if not raw:
+            return ""
+        if b"\x00" in raw:
+            text = raw.decode("utf-16-le", "ignore").strip("\x00").strip()
+            if text and sum(ch.isprintable() for ch in text) / len(text) > 0.8:
+                return text
+        for encoding in ("utf-8", "latin-1"):
+            text = raw.decode(encoding, "ignore").strip("\x00").strip()
+            if text:
+                return text
+        return ""
+    return str(value).strip()
+
+
+def _pick(values, *names):
+    for name in names:
+        text = _text(values.get(name))
+        if text:
+            return text
+    return None
+
+
+def _path_text(value):
+    """Path extraction that also handles bytes and regipy hex-string binaries.
+
+    regipy renders some REG_BINARY values (legacy FullPath) as hex strings,
+    not bytes; those are decoded back through UTF-16LE/UTF-8 and validated
+    with PATH_RE before use. ``\\??\\`` prefixes are stripped.
+    """
+    def clean(text):
+        if text.startswith("\\??\\"):
+            text = text[4:]
+        return text if text and PATH_RE.search(text) else ""
+
+    text = clean(_text(value))
+    if text:
+        return text
+    raw = None
+    if isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+    elif isinstance(value, str):
+        blob = value.strip()
+        if blob and len(blob) % 2 == 0 and re.fullmatch(r"[0-9a-fA-F]+", blob):
+            try:
+                raw = bytes.fromhex(blob)
+            except ValueError:
+                raw = None
+    if not raw:
+        return ""
+    for encoding in ("utf-16-le", "utf-8"):
+        try:
+            decoded = raw.decode(encoding).strip("\x00").strip()
+        except UnicodeDecodeError:
+            continue
+        cleaned = clean(decoded)
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def _pick_path(values, *names):
+    for name in names:
+        if name not in values:
+            continue
+        text = _path_text(values[name])
+        if text:
+            return text
+    return None
+
+
+def _iso_from_string(text):
+    """Best-effort parse of date strings written by different Amcache gens."""
+    cleaned = text.strip()
+    if not cleaned:
+        return None
+    for fmt in _DATE_FORMATS:
+        try:
+            moment = dt.datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+        return moment.replace(tzinfo=dt.timezone.utc).isoformat()
+    try:
+        moment = dt.datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.isoformat()
+
+
+def _filetime_pair(values):
+    """Win7/8 stores the clock as REG_DWORD HighDateTime/LowDateTime."""
+    low = values.get("LowDateTime")
+    high = values.get("HighDateTime")
+    if low is None or high is None:
+        return None
+    try:
+        combined = ((int(high) & 0xFFFFFFFF) << 32) | (int(low) & 0xFFFFFFFF)
+    except (TypeError, ValueError):
+        return None
+    if combined <= 0:
+        return None
+    try:
+        moment = dt.datetime(1601, 1, 1, tzinfo=dt.timezone.utc) + dt.timedelta(
+            microseconds=combined // 10)
+    except (OverflowError, OSError, ValueError):
+        return None
+    return moment.isoformat()
+
+
+def _key_time(key_obj):
+    """Key LastWrite — the fallback clock for every Amcache generation."""
+    try:
+        value = key_obj.header.last_modified
+    except AttributeError:
+        return None
+    if isinstance(value, dt.datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=dt.timezone.utc)
+        return value.astimezone(dt.timezone.utc).isoformat()
+    if isinstance(value, int) and value > 0:
+        try:
+            moment = dt.datetime(1601, 1, 1, tzinfo=dt.timezone.utc) + dt.timedelta(
+                microseconds=value // 10)
+        except (OverflowError, OSError, ValueError):
+            return None
+        return moment.isoformat()
+    return None
+
+
+def _sha1_of(values, key_name):
+    """SHA-1 from named values first, then any value, then the key name."""
+    ordered = [values.get("SHA1"), values.get("Sha1"), values.get("FileId")]
+    ordered += [v for v in values.values() if v not in ordered]
+    for raw in ordered:
+        text = _text(raw)
+        if not text:
+            continue
+        found = SHA1_RE.search(text)
+        if found:
+            source = "value" if raw in (values.get("SHA1"), values.get("Sha1"),
+                                        values.get("FileId")) else "value_scan"
+            return found.group(0).lower(), source
+    found = SHA1_RE.search(key_name or "")
+    if found:
+        return found.group(0).lower(), "key_name"
+    return None, None
+
+
+def _entry_from_subkey(section, kind, key):
+    values = {}
+    try:
+        for value in key.iter_values():
+            values[value.name] = value.value
+    except Exception:  # corrupt value table — keep what we have
+        pass
+
+    key_name = key.name or ""
+
+    path = _pick_path(values, "LowerCaseLongPath", "LongPath", "FullPath",
+                      "Path", "RootDirPath")
+    if not path:
+        for candidate in values.values():
+            text = _path_text(candidate)
+            if text:
+                path = text
+                break
+
+    name = _pick(values, "Name", "OriginalFileName", "DisplayName",
+                 "ProgramName")
+    if not name and path:
+        name = ntpath.basename(path) or None
+    if not name and "|" in key_name:
+        name = key_name.split("|", 1)[0]
+    if not name:
+        name = key_name or "Unknown"
+
+    sha1, sha1_source = _sha1_of(values, key_name)
+    size = parse_size(values.get("Size"))
+    if size is None:
+        size = parse_size(values.get("FileSize"))
+
+    program_id = _pick(values, "ProgramId")
+
+    # ---- timestamp -----------------------------------------------------
+    stamp = stamp_raw = None
+    stamp_source = "key_lastwrite"
+    if kind != "program":
+        pair = _filetime_pair(values)
+        if pair:
+            stamp, stamp_source = pair, "filetime_pair"
+        else:
+            link = _pick(values, "LinkDate", "Link date")
+            if link:
+                stamp = _iso_from_string(link)
+                if stamp:
+                    stamp_raw, stamp_source = link, "link_date"
+    if stamp is None and kind == "program":
+        install = _pick(values, "InstallDate", "InstallDate2", "Installed")
+        if install:
+            stamp = _iso_from_string(install)
+            if stamp:
+                stamp_raw, stamp_source = install, "install_date"
+    if stamp is None:
+        stamp = _key_time(key)
+        stamp_source = "key_lastwrite"
+
+    return {
+        "section": kind,
+        "section_name": section,
+        "key_name": key_name,
+        "key_ref": f"Root\\{section}\\{key_name}",
+        "path": path,
+        "name": name,
+        "sha1": sha1,
+        "sha1_source": sha1_source,
+        "size": size,
+        "stamp": stamp,
+        "stamp_raw": stamp_raw,
+        "stamp_source": stamp_source,
+        "program": _pick(values, "ProductName", "DisplayName", "ProgramName"),
+        "publisher": _pick(values, "Publisher"),
+        "version": _pick(values, "Version", "BinFileVersion", "ProductVersion"),
+        "binary_type": _pick(values, "BinaryType"),
+        "program_id": program_id,
+    }
+
+
+def iter_hive_entries(hive):
+    """Yield normalised entries from an OPEN regipy Amcache hive.
+
+    Walks every supported section (InventoryApplicationFile, legacy File,
+    Programs) and returns dicts ready for Tier 1 ``make_record`` adapters.
+    """
+    for section, kind in _FILE_SECTIONS + _PROGRAM_SECTIONS:
+        try:
+            root_key = hive.get_key("\\Root\\" + section)
+        except Exception:
+            root_key = None
+        if root_key is None:
+            continue
+        try:
+            subkeys = list(root_key.iter_subkeys())
+        except Exception:
+            continue
+        for sub in subkeys:
+            try:
+                yield _entry_from_subkey(section, kind, sub)
+            except Exception:  # one bad row never kills the section
+                continue
+
+
+def _amcache_record(entry, hive_path, machine_id):
+    """Adapt one shared Amcache entry dict to a record."""
+    details = {
+        "section": entry["section"],
+        "timestamp_source": entry["stamp_source"],
+        "sha1": entry["sha1"],
+        "sha1_source": entry["sha1_source"],
+        "size": entry["size"],
+        "program": entry["program"],
+        "publisher": entry["publisher"],
+        "version": entry["version"],
+        "binary_type": entry["binary_type"],
+        "program_id": entry["program_id"],
+    }
+    details = {k: v for k, v in details.items() if v is not None}
+    name = entry["name"] or "Unknown"
+    return make_record(
+        timestamp_utc=entry["stamp"],
+        timestamp_raw=entry["stamp_raw"] or entry["stamp"],
+        source_file=hive_path,
+        record_ref=entry["key_ref"],
+        parser="tier1_amcache",
+        parser_version=VERSION,
+        source="Amcache",
+        artifact_type=("amcache_program" if entry["section"] == "program"
+                       else "amcache_file"),
+        artifact_name=f"Amcache {name}",
+        event_type=(SECTION_EVENT or {}).get(entry["section"],
+                                             "Program Executed"),
+        target_path=entry["path"] or name,
+        machine_id=machine_id,
+        details=details,
+        raw_bytes=b"")
+
+
+def collect_amcache(paths, machine_id=None):
+    """Collect Amcache from every generation and hive copy under *paths*.
+
+    Covers Win10 1703+ ``InventoryApplicationFile``, legacy Win7/8
+    ``Root\\File``, the ``Programs`` key, and orphan/copied ``Amcache*``
+    hives anywhere under an evidence root (deduplicated across copies).
+    """
+    _require_regipy()
+    records, notes = [], []
+    standard = os.path.join(paths.windows, "appcompat", "Programs",
+                            "Amcache.hve")
+    candidates = _find_amcache_hives(paths, standard)
+    if not candidates:
+        scope = f" (standard path and {paths.root})" if paths.root else ""
+        return [], [f"Amcache.hve not found{scope}"]
+    if len(candidates) > 1:
+        notes.append(f"{len(candidates)} Amcache hive copy(ies) found "
+                     "(standard + orphan/VSS copies); deduplicated across "
+                     "copies")
+    opened = 0
+    seen_hashes = set()
+    standard_norm = os.path.normcase(os.path.abspath(standard))
+    for hive_path in candidates:
+        hive_notes: list[str] = []
+        try:
+            hive = _open_hive(hive_path, hive_notes)
+        except Tier1Error as exc:
+            notes.append(f"{hive_path}: {exc}")
+            continue
+        opened += 1
+        notes.extend(hive_notes)
+        before = len(records)
+        for entry in iter_hive_entries(hive):
+            rec = _amcache_record(entry, hive_path, machine_id)
+            if rec["source_hash"] in seen_hashes:
+                continue
+            seen_hashes.add(rec["source_hash"])
+            records.append(rec)
+        added = len(records) - before
+        is_standard = (os.path.normcase(os.path.abspath(hive_path))
+                       == standard_norm)
+        tag = "Amcache.hve" if is_standard else f"orphan {hive_path}"
+        if added:
+            notes.append(f"{tag}: {added:,} entries")
+        else:
+            notes.append(f"{tag}: no recognizable Amcache entries")
+    if not opened:
+        return [], notes
     return records, notes
 
 
@@ -1226,6 +1811,8 @@ def available():
         table["lnk"] = (False, "lnk_forensics module unavailable")
     if parse_jumplist_file is None:
         table["jumplist"] = (False, "jumplists_parser module unavailable")
+    if iter_shellbag_entries is None:
+        table["shellbag"] = (False, "shellbag_parser module unavailable")
     return table
 
 
@@ -1241,6 +1828,7 @@ class AcquisitionEngine:
         wanted = [a for a in TIER1_IDS if a in set(selected or [])]
         avail = available()
         records, report, seen = [], {}, set()
+        cleanup_temp_hives()  # drop leftovers from interrupted runs
         for item in TIER1:
             artifact = item["id"]
             if artifact not in wanted:
@@ -1256,7 +1844,8 @@ class AcquisitionEngine:
                 if artifact in ("prefetch", "lnk", "jumplist"):
                     recs, notes = globals()[f"collect_{artifact}"](
                         self.paths, self.machine_id)
-                elif artifact in ("userassist", "mru", "bam", "usb", "amcache"):
+                elif artifact in ("userassist", "mru", "bam", "usb", "amcache",
+                                  "shellbag"):
                     recs, notes = globals()[f"collect_{artifact}"](
                         self.paths, self.machine_id)
                 else:
@@ -1280,7 +1869,7 @@ class AcquisitionEngine:
                     continue
                 seen.add(digest)
                 fresh.append(rec)
-            status = "ok" if fresh else ("empty" if not notes else "ok")
+            status = "ok" if fresh else "empty"
             note = "; ".join(notes)
             if dups:
                 note = ((note + "; ") if note else "") + f"{dups} duplicate(s) skipped"
@@ -1288,6 +1877,7 @@ class AcquisitionEngine:
             records.extend(fresh)
         records.sort(key=lambda r: (r.get("timestamp_utc") is None,
                                     r.get("timestamp_utc") or ""))
+        cleanup_temp_hives()  # snapshots are parsed; remove temp copies now
         return records, report
 
 
